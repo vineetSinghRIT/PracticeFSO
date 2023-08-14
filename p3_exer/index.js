@@ -3,10 +3,9 @@ const app = express();
 var morgan=require("morgan");
 const cors=require("cors");
 
-
-
-app.use(express.json());
 app.use(cors());
+app.use(express.static('build'))
+app.use(express.json());
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms'));
 
 let persons = [
