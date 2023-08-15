@@ -1,8 +1,12 @@
+
+require('dotenv').config()
 const express = require("express");
 const app = express();
 var morgan=require("morgan");
 const cors=require("cors");
 
+
+const Phno = require('./models/phone')
 app.use(cors());
 app.use(express.static('build'))
 app.use(express.json());
@@ -46,15 +50,9 @@ const options = {
 };
 
 app.get("/api/persons", (request, response) => {
-  console.log("All requested");
-  response.json(persons);
-});
-
-app.get("/api/persons/:id", (request, response) => {
-  console.log("Individual detail");
-  id=Number(request.params.id)
-  detail=persons.filter(person => person.id===id)
-  response.json(detail);
+  Phno.find({}).then(phone => {
+    response.json(phone)
+  })
 });
 
 app.get("/info", (request, response) => {
@@ -76,17 +74,20 @@ app.delete("/api/persons/:id", (request, response) => {
 
 app.post("/api/persons",(req,res)=>{
   randID=Math.floor(Math.random() * 29999)
+  const body=req.body
 
-  if (!req.body.name || !req.body.number){
+  if (!body.name || !body.number){
     return res.status(400).json({error: 'content missing'})
   }
 
-  data=req.body
-  console.log(data)
-  data.id=randID
-  console.log(data);
-  persons=persons.concat(data);
-  res.json(data);
+  const phoneNo = new Phno({
+    name: body.name,
+    phno: body.number
+  })
+
+  phoneNo.save().then(savedNote => {
+    res.json(savedNote)
+  })
 })
 
 
