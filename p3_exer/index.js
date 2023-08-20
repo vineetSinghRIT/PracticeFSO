@@ -1,16 +1,42 @@
-
-require('dotenv').config()
 const express = require("express");
+const cors = require("cors");
 const app = express();
-var morgan=require("morgan");
-const cors=require("cors");
+require("dotenv").config()
+const Phno = require("./models/phone");
 
+var morgan = require("morgan");
 
-const Phno = require('./models/phone')
+const requestLogger = (request, response, next) => {
+  console.log("Method:", request.method);
+  console.log("Path:  ", request.path);
+  console.log("Body:  ", request.body);
+  console.log("Params:  ", request.params);
+  console.log("---");
+  next();
+};
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message);
+  if (error.name === "CastError") {
+    return response.status(400).send({ error: "malformatted id" });
+  }
+  if (error.name === "ValidationError") {
+    return response.status(400).send({ error: error.message });
+  }
+  next(error);
+};
+
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: "unknown endpoint" });
+};
+
 app.use(cors());
-app.use(express.static('build'))
 app.use(express.json());
-app.use(morgan(':method :url :status :res[content-length] - :response-time ms'));
+app.use(express.static("build"));
+app.use(requestLogger);
+app.use(
+  morgan(":method :url :status :res[content-length] - :response-time ms")
+);
 
 let persons = [
   {
@@ -50,49 +76,91 @@ const options = {
 };
 
 app.get("/api/persons", (request, response) => {
-  Phno.find({}).then(phone => {
-    response.json(phone)
-  })
+  Phno.find({}).then((phone) => {
+    response.json(phone);
+  });
+});
+
+app.get("/api/persons/:id", (request, response,next) => {
+  const id=request.params.id
+  Phno.findById(id).then((phone) => {
+    response.json(phone);
+  }).catch((error) => next(error));
+
 });
 
 app.get("/info", (request, response) => {
   console.log("Info Request");
-  response.send(
-    `<h1>
-    <p>Phone book has ${persons.length}</p>
-    <p>${date.toLocaleTimeString("en-us", options)}</p>
-    </h1>`
-  );
+  Phno.find({}).then((result) => {
+    response.send(
+      `<h1>
+      <p>Phone book has ${result.length}</p>
+      <p>${date.toLocaleTimeString("en-us", options)}</p>
+      </h1>`
+    );
+  }).catch((error) => next(error));
+  
 });
 
 app.delete("/api/persons/:id", (request, response) => {
   console.log("Individual detail");
-  id=Number(request.params.id)
-  persons=persons.filter(person => person.id!==id)
-  response.json(persons);
+  //id=Number(request.params.id)
+  id = request.params.id;
+
+  Phno.findByIdAndDelete(id)
+    .then((result) => {
+      response.status(204).end();
+    })
+    .catch((error) => next(error));
 });
 
-app.post("/api/persons",(req,res)=>{
-  randID=Math.floor(Math.random() * 29999)
-  const body=req.body
+app.put("/api/persons/:id", (req, res,next) => {
+  const body = req.body;
+  console.log(req.params.id)
 
-  if (!body.name || !body.number){
-    return res.status(400).json({error: 'content missing'})
+  const phoneUpdate = {
+    name: body.name,
+    phno: body.number,
+  };
+
+  console.log(phoneUpdate)
+
+  Phno.findByIdAndUpdate(req.params.id, phoneUpdate, { new: true ,runValidators: true})
+    .then(updatedPhone => {
+      res.json(updatedPhone)
+    })
+    .catch(error => next(error))
+
+});
+
+
+
+app.post("/api/persons", (req, res,next) => {
+  const body = req.body;
+
+  if (!body.name || !body.number) {
+    return res.status(400).json({ error: "content missing" });
   }
 
   const phoneNo = new Phno({
     name: body.name,
-    phno: body.number
-  })
+    phno: body.number,
+  });
 
-  phoneNo.save().then(savedNote => {
-    res.json(savedNote)
-  })
-})
+  phoneNo.save().then((savedNote) => {
+    res.json(savedNote);
+  }).catch(error => next(error));
+});
 
 
 
-const PORT = process.env.PORT || 3001
+// handler of requests with unknown endpoint
+app.use(unknownEndpoint);
+
+// this has to be the last loaded middleware.
+app.use(errorHandler);
+
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`)
-})
+  console.log(`Server running on port ${PORT}`);
+});
